@@ -43,7 +43,7 @@ namespace CompositionExample
         CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
         Random rnd = new Random();
         Vector2 OgSize;
-        //Default entity size
+        int ScrollOffset = 0;
         Size size;
         public void Initialize(CoreApplicationView applicationView)
         {
@@ -51,6 +51,16 @@ namespace CompositionExample
             relationshipHandler = new List<RelationshipHandler>();
             relationshipLines = new List<RelationshipLine>();
             applicationView.Activated += applicationView_Activated;
+            RenderDone = false;
+            
+            
+        }
+
+        private void Window_PointerWheelChanged(CoreWindow sender, PointerEventArgs args)
+        {
+            RenderDone = false;
+            ScrollOffset += args.CurrentPoint.Properties.MouseWheelDelta;
+            var ignoredTask = UpdateVisualsLoop();
             
         }
 
@@ -87,6 +97,7 @@ namespace CompositionExample
             OgSize = new Vector2((float)window.Bounds.Width, (float)window.Bounds.Height);
             Clipboard.ContentChanged += Clipboard_ContentChanged;
             window.SizeChanged += Window_SizeChanged;
+            window.PointerWheelChanged += Window_PointerWheelChanged;
 
             if (!Windows.Foundation.Metadata.ApiInformation.IsApiContractPresent("Windows.Foundation.UniversalApiContract", 2))
             {
@@ -125,7 +136,7 @@ namespace CompositionExample
             size.Height *= 0.10;
 
             rootVisual = compositor.CreateContainerVisual();
-            //compositionTarget = compositor.CreateTargetForCurrentView();
+            
             compositionTarget.Root = rootVisual;
 
             relationshipHandler.Clear();
@@ -178,11 +189,23 @@ namespace CompositionExample
                         {
                             Point temp = new Point(pointMap[props[i]].X, pointMap[props[i]].Y + 1);
                             if(!pointMap.ContainsKey(pastedRowCells[i]))
-                                pointMap.Add(pastedRowCells[i], new Point((pointMap[props[i]].X)+((pointMap[props[i]].X)*.10), pointMap[props[i]].Y+ ((pointMap[props[i]].Y) * .10)));
+                                pointMap.Add(pastedRowCells[i], new Point(
+                                    (pointMap[props[i]].X)+((pointMap[props[i]].X)*.10), 
+                                    pointMap[props[i]].Y+ ((pointMap[props[i]].Y) * .10)));
                             pointMap[props[i]] = temp;
 
-                            //Point tempPoint = 
-                            Link = graph.ConnectedNodes[graph.AddNode(pastedRowCells[i], new Entity { Name = pastedRowCells[i], EntityColor = Colors.Black, Description = props[i], EntityShape = new Rect(new Point(pointMap[pastedRowCells[i]].X * size.Width, pointMap[pastedRowCells[i]].Y * size.Height), size) })][0];
+                            Link = graph.ConnectedNodes[graph.AddNode(pastedRowCells[i], 
+                                new Entity 
+                                { 
+                                    Name = pastedRowCells[i],
+                                    EntityColor = Colors.Black, 
+                                    Description = props[i], 
+                                    EntityShape = new Rect(
+                                        new Point(
+                                            pointMap[pastedRowCells[i]].X * size.Width, 
+                                            pointMap[pastedRowCells[i]].Y * size.Height), 
+                                            size) 
+                                })][0];
                             graph.ConnectedNodes[Link.NodeIndex][0].xPoint = (int)((int)temp.X*size.Width);
                             graph.ConnectedNodes[Link.NodeIndex][0].yPoint = (int)((int)temp.Y*size.Height);
                         }
@@ -196,9 +219,10 @@ namespace CompositionExample
                                 //pointMap.Add(Link.Name + tempNode.Name, new Point(,) );
                                 graph.ConnectDirectToAndFromNode(Link.Name, tempNode.Name, 1);
                                 //Relationship rel = 
-                                tempNode.Value.Relationships.Add(Link.Name, new Relationship { Color = Colors.Wheat, FromEntity = graph.ConnectedNodes[tempNode.NodeIndex][0].Value, ToEntity = graph.ConnectedNodes[Link.NodeIndex][0].Value });
-                                //Link.Value.Relationships.Add(Link.Name,rel);
-                                
+                                tempNode.Value.Relationships.Add(Link.Name, new Relationship { 
+                                    Color = Colors.Wheat, 
+                                    FromEntity = graph.ConnectedNodes[tempNode.NodeIndex][0].Value, 
+                                    ToEntity = graph.ConnectedNodes[Link.NodeIndex][0].Value });
                             }
                         }
                             
@@ -219,18 +243,13 @@ namespace CompositionExample
 
             while (!token.IsCancellationRequested && !RenderDone)
             {
-                //UpdateVisual(swapChainRenderer.Visual, swapChainRenderer.Size);
+                
                 foreach(RelationshipHandler rh in relationshipHandler)
                {
                     UpdateVisual(rh.Visual, rh.Size);
+                    rh.Visual.Opacity = 1;
                 }
-                //foreach (RelationshipLine rl in relationshipLines)
-                //{
-                //    UpdateVisualRelationship(rl.Visual, rl.Size, rl.Relationship);
-                //    //UpdateVisualRelationship(rl.Visual, rl.Size, rl.Relationship.FromEntity);
-                //}
-                    
-                
+
 
                 await Task.Delay(TimeSpan.FromSeconds(2));
                 RenderDone = true;
@@ -248,57 +267,25 @@ namespace CompositionExample
             var oldOffset = visual.Offset;
             Vector2 newSize = new Vector2((float)window.Bounds.Width, (float)window.Bounds.Height);
             Vector2 oldVisSize = new Vector2((float)size.Width, (float)size.Height);
-            Vector2 newVisSize = oldVisSize * (newSize / OgSize);
-
+            Vector2 newVisSize =  (oldVisSize * (newSize / OgSize));
+            newVisSize.X += ScrollOffset;
+            newVisSize.Y += ScrollOffset;
             var newOffset = new Vector3(
                 (float)(((visual.CenterPoint.X) * newVisSize.X)),
                 (float)(((visual.CenterPoint.Y) * newVisSize.Y)),
                 0);
             visual.Offset = newOffset;
-            //entity.EntityShape = new Rect(newOffset.X, newOffset.Y, newVisSize.X, newVisSize.Y);
 
-            if(newVisSize!=oldVisSize)
+
+            if (newVisSize != oldVisSize)
+            {
                 AnimateSizeChange(visual, oldVisSize, newVisSize);
-            AnimateOffset(visual, oldOffset, newOffset);
+                AnimateOffset(visual, oldOffset, newOffset);
+            }
+                
         }
 
-        void UpdateVisualRelationship(Visual visual, Size size, Relationship rel)
-        {
-            //var oldOffset = visual.Offset;
-            //Vector2 newSize = new Vector2((float)window.Bounds.Width, (float)window.Bounds.Height);
-            //Vector2 oldVisSize = new Vector2((float)size.Width, (float)size.Height);
-            //Vector2 newVisSize = oldVisSize * (newSize / OgSize);
-            ////var newOffset = new Vector3();
-            //var newOffset = new Vector3(
-            //   (float)((rel.To().X) * newVisSize.X),
-            //   (float)(((rel.To().X) * newVisSize.Y)),
-            //   0);
-
-
-            //if (rel.FromEntity.EntityShape.Left > rel.ToEntity.EntityShape.Left)
-            //{
-            //    newOffset.X = (float)((rel.Size().Width/ (pointMap[rel.FromEntity.Name].X * size.Width)) * newVisSize.X);
-            //}
-            //else
-            //{
-            //    newOffset.X = (float)((rel.Size().Width/ (pointMap[rel.ToEntity.Name].X * size.Width)) * newVisSize.X);
-            //}
-            //if (rel.FromEntity.EntityShape.Left > rel.ToEntity.EntityShape.Left)
-            //{
-            //    newOffset.Y = (float)((rel.Size().Height / (pointMap[rel.FromEntity.Name].Y*size.Height)) * newVisSize.Y);
-            //}
-            //else
-            //{
-            //    newOffset.Y = (float)((rel.Size().Height/(pointMap[rel.ToEntity.Name].Y*size.Height)) * newVisSize.Y);
-            //}
-            //if (newVisSize != oldVisSize)
-            //    AnimateSizeChange(visual, oldVisSize, newVisSize);
-            //AnimateOffset(visual, oldOffset, newOffset);
-
-
-
-        }
-
+        
         void UpdateVisualOpacity(Visual visual)
         {
             var oldOpacity = visual.Opacity;
@@ -315,9 +302,9 @@ namespace CompositionExample
         void AnimateSizeChange(Visual visual, Vector2 oldSize, Vector2 newSize)
         {
             var animation = compositor.CreateVector2KeyFrameAnimation();
-            animation.InsertKeyFrame(0, oldSize);
+            animation.InsertKeyFrame(1, oldSize);
             animation.InsertKeyFrame(1, newSize);
-            animation.Duration = TimeSpan.FromSeconds(1);
+            animation.Duration = TimeSpan.FromSeconds(0.5);
 
             visual.StartAnimation("Size", animation);
         }
@@ -335,7 +322,9 @@ namespace CompositionExample
         void Window_PointerPressed(CoreWindow sender, PointerEventArgs args)
         {
             //swapChainRenderer.Paused = !swapChainRenderer.Paused;
+
         }
+
 
         void CoreApplication_Suspending(object sender, SuspendingEventArgs args)
         {

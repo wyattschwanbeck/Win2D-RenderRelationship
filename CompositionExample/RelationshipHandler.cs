@@ -35,18 +35,22 @@ namespace CompositionExample
        // public Dictionary<string, int> RenderedXPoints;
         //public Entity Entity;
         private Size EntitySize;
-        public RelationshipHandler(Compositor compositor, CompositionGraphicsDevice compositionGraphicsDevice, Size entitySize, Graph<Entity> graph) 
+        public RelationshipHandler(Compositor compositor, 
+            CompositionGraphicsDevice compositionGraphicsDevice, 
+            Size entitySize, 
+            Graph<Entity> graph) 
         {
-            //Entity = entity;
             this.EntitySize = entitySize;
             this.graph = graph;
-            //SetFromGraph(entitySize);
-                drawingSurfaceVisual = compositor.CreateSpriteVisual();
-                drawingSurface = compositionGraphicsDevice.CreateDrawingSurface(SetFromGraph(entitySize), DirectXPixelFormat.B8G8R8A8UIntNormalized, DirectXAlphaMode.Premultiplied);
-                drawingSurfaceVisual.Brush = compositor.CreateSurfaceBrush(drawingSurface);
-                DrawDrawingSurface();
-                compositionGraphicsDevice.RenderingDeviceReplaced += CompositionGraphicsDevice_RenderingDeviceReplaced;
 
+                drawingSurfaceVisual = compositor.CreateSpriteVisual();
+                
+                drawingSurface = compositionGraphicsDevice.CreateDrawingSurface(SetFromGraph(entitySize), 
+                    DirectXPixelFormat.B8G8R8A8UIntNormalized, DirectXAlphaMode.Premultiplied);
+                drawingSurfaceVisual.Brush = compositor.CreateSurfaceBrush(drawingSurface);
+                
+                compositionGraphicsDevice.RenderingDeviceReplaced += CompositionGraphicsDevice_RenderingDeviceReplaced;
+                DrawDrawingSurface();
         }
         private Dictionary<string, bool> CapturedRelationships;
         private Dictionary<string, int> CapturedEntities;
@@ -55,7 +59,7 @@ namespace CompositionExample
             //OutputClipboardText();
             CapturedRelationships = new Dictionary<string, bool>();
             int MaxCount = 0;
-            //OgSize = new Vector2((float)window.Bounds.Width, (float)window.Bounds.Height);
+
             CapturedEntities = new Dictionary<string, int>();
 
             foreach (List<GraphNode<Entity>> nodes in graph.ConnectedNodes)
@@ -92,7 +96,6 @@ namespace CompositionExample
             }
             return new Size((CapturedEntities.Count *(EntitySize.Width*1.25) + EntitySize.Width), (MaxCount * (EntitySize.Height*1.25))+EntitySize.Height);
 
-            //RenderDone = false;
         }
 
         void CompositionGraphicsDevice_RenderingDeviceReplaced(CompositionGraphicsDevice sender, RenderingDeviceReplacedEventArgs args)
@@ -102,39 +105,26 @@ namespace CompositionExample
 
         void DrawDrawingSurface()
         {
-            //double X = 0;
-            //double Y = 0;
-            //double len = 50;
-            //int RenderColumn = 1;
-
             using (var ds = CanvasComposition.CreateDrawingSession(drawingSurface))
             {
+                Dictionary<string, Rect> VisibleRects = new Dictionary<string, Rect>();
 
-                //
-                //                
-                foreach(List<GraphNode<Entity>> ent in graph.ConnectedNodes) 
+                foreach (List<GraphNode<Entity>> ent in graph.ConnectedNodes)
                 {
-                    
                     if (ent != null)
                     {
                         GraphNode<Entity> e = ent[0];
-                        Rect TempShape = new Rect { Height = this.EntitySize.Height, Width = this.EntitySize.Width, X = e.xPoint*1.25, Y = e.yPoint*1.25};
+                        Rect TempShape = new Rect { Height = this.EntitySize.Height, Width = this.EntitySize.Width, X = e.xPoint * 1.25, Y = e.yPoint * 1.25 };
                         ds.FillRoundedRectangle(TempShape, 10, 10, Colors.LightBlue);
                         ds.DrawRoundedRectangle(TempShape, 10, 10, Colors.Gray, 2);
+                        VisibleRects.Add(e.Name, TempShape);
+                        if (TempShape.Y - TempShape.Height < TempShape.Height)
+                            ds.DrawText(e.Value.Description, new Vector2 { X = (float)((float)TempShape.X), Y = (float)(TempShape.Y - e.yPoint) }, Colors.Black);
 
 
-                        foreach (Relationship rl in e.Value.Relationships.Values)
-                        {
-                            GraphNode<Entity> link = graph.BFS(rl.ToEntity.Name);
-                            Rect ToShape = new Rect { Height = rl.Size().Height, Width = rl.Size().Width, X = link.xPoint*1.25, Y = link.yPoint*1.25 };
-                            Point To = this.To(new Entity { EntityShape = ToShape }, new Entity { EntityShape = TempShape });
-                            Point From = this.From(new Entity { EntityShape = ToShape }, new Entity { EntityShape = TempShape });
-
-                            ds.DrawLine(new Vector2((float)From.X, (float)From.Y), new Vector2((float)To.X, (float)To.Y), Colors.Black);
-                        }
                         ds.DrawText(e.Name, TempShape, Colors.Black, new CanvasTextFormat()
                         {
-                            FontFamily = "Comic Sans MS",
+                            FontFamily = "Arial",
                             FontSize = 12,
                             WordWrapping = CanvasWordWrapping.WholeWord,
                             VerticalAlignment = CanvasVerticalAlignment.Center,
@@ -143,9 +133,29 @@ namespace CompositionExample
                     }
 
                 }
-               
+                foreach (List<GraphNode<Entity>> ent in graph.ConnectedNodes)
+                {
+                    if (ent != null)
+                    {
+                        GraphNode<Entity> e = ent[0];
+                        Rect TempShape = VisibleRects[e.Name];
+
+                        foreach (Relationship rl in e.Value.Relationships.Values)
+                        {
+
+                            GraphNode<Entity> link = graph.BFS(rl.ToEntity.Name);
+
+                            Rect ToShape = VisibleRects[rl.ToEntity.Name];//new Rect { Height = rl.Size().Height, Width = rl.Size().Width, X = link.xPoint * 1.25, Y = link.yPoint * .75 };
+                            Point To = this.To(new Entity { EntityShape = ToShape }, new Entity { EntityShape = TempShape });
+                            Point From = this.From(new Entity { EntityShape = ToShape }, new Entity { EntityShape = TempShape });
+
+                            ds.DrawLine(new Vector2((float)From.X, (float)From.Y), new Vector2((float)To.X, (float)To.Y), Colors.Black);
+                        }
+                    }
+
+                }
+
             }
-           
         }
         private Point To(Entity ToEntity, Entity FromEntity)
         {
