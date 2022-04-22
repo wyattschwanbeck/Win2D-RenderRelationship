@@ -2,7 +2,11 @@
 Reads directly from clipboard data for grids and relationships across unique entities. 
 
 TODO
-Error Handling
+Mouse pointer to manipulate visuals
+Inclusion of entity differentiation by color
+Inclusion of legend for entities
+
+
 
 These samples reference the NuGet package [Microsoft.Graphics.Win2D](http://www.nuget.org/packages/Microsoft.Graphics.Win2D), 
 which will be automatically downloaded when you build the sample, so there is no need to 
