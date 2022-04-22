@@ -34,11 +34,13 @@ namespace CompositionExample
         CompositionTarget compositionTarget;
         CanvasDevice device;
         CompositionGraphicsDevice compositionGraphicsDevice;
-        List<RelationshipHandler> relationshipHandler;
-        List<RelationshipLine> relationshipLines;
-        Dictionary<string, List<string>> keyValuePairs;
-        Dictionary<string, Point> pointMap;
-        private Graph<Entity> graph;
+        RelationshipHandler relationshipHandler;
+        //List<RelationshipLine> relationshipLines;
+        bool pressOccured = false;
+        Windows.UI.Input.PointerPoint MouseOrigin;
+
+
+        private Vector2 PointerDragOffset;
 
         CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
         Random rnd = new Random();
@@ -47,9 +49,9 @@ namespace CompositionExample
         Size size;
         public void Initialize(CoreApplicationView applicationView)
         {
-            pointMap = new Dictionary<string, Point>();
-            relationshipHandler = new List<RelationshipHandler>();
-            relationshipLines = new List<RelationshipLine>();
+
+            
+            //relationshipLines = new List<RelationshipLine>();
             applicationView.Activated += applicationView_Activated;
             RenderDone = false;
             
@@ -123,9 +125,8 @@ namespace CompositionExample
             rootVisual = compositor.CreateContainerVisual();
             compositionTarget = compositor.CreateTargetForCurrentView();
             compositionTarget.Root = rootVisual;
-
-            OutputClipboardText();
-
+            relationshipHandler = new RelationshipHandler(compositor, compositionGraphicsDevice, size);
+            RenderDone = false;
             var ignoredTask = UpdateVisualsLoop();
         }
 
@@ -138,104 +139,19 @@ namespace CompositionExample
             rootVisual = compositor.CreateContainerVisual();
             
             compositionTarget.Root = rootVisual;
-
-            relationshipHandler.Clear();
-            OutputClipboardText();
+            relationshipHandler=  new RelationshipHandler(compositor, compositionGraphicsDevice, size);
+            
+            rootVisual.Children.InsertAtTop(relationshipHandler.Visual);
+            RenderDone = false;
+            //relationshipHandler.Clear();
+            
             var ignoredTask = UpdateVisualsLoop();
 
         }
       
 
         
-        void OutputClipboardText()
-        {
-            graph = new Graph<Entity>(1000);
-            pointMap = new Dictionary<string, Point>();
-            List<string> props = new List<string>();
-            keyValuePairs = new Dictionary<string, List<string>>();
 
-
-            DataPackageView dataPackageView = Clipboard.GetContent();
-            if (dataPackageView.Contains(StandardDataFormats.Text))
-            {
-                var task = Task.Run(async () => await dataPackageView.GetTextAsync());
-                var result = task.Result;
-                
-                string text = result.ToString();
-                string[] pastedRows = Regex.Split(text.TrimEnd("\r\n".ToCharArray()), "\r\n");
-
-                
-                int DescriptionCount = 1;
-                foreach (string cell in pastedRows[0].Split(new char[] { '\t' }))
-                {
-
-                    keyValuePairs.Add(cell, new List<string>());
-                    props.Add(cell);
-                    pointMap.Add(cell,new Point(DescriptionCount, 0));
-                    DescriptionCount += 1;
-                }
-
-
-
-                for (int r = 1; r < pastedRows.Length; r++)
-                {
-                    string[] pastedRowCells = pastedRows[r].Split(new char[] { '\t' });
-
-                    GraphNode<Entity> tempNode = null;
-                    for (int i = 0; i < pastedRowCells.Length; i++)
-                    {
-                        GraphNode<Entity> Link = graph.BFS(pastedRowCells[i]);
-                        if(Link==null)
-                        {
-                            Point temp = new Point(pointMap[props[i]].X, pointMap[props[i]].Y + 1);
-                            if(!pointMap.ContainsKey(pastedRowCells[i]))
-                                pointMap.Add(pastedRowCells[i], new Point(
-                                    (pointMap[props[i]].X)+((pointMap[props[i]].X)*.10), 
-                                    pointMap[props[i]].Y+ ((pointMap[props[i]].Y) * .10)));
-                            pointMap[props[i]] = temp;
-
-                            Link = graph.ConnectedNodes[graph.AddNode(pastedRowCells[i], 
-                                new Entity 
-                                { 
-                                    Name = pastedRowCells[i],
-                                    EntityColor = Colors.Black, 
-                                    Description = props[i], 
-                                    EntityShape = new Rect(
-                                        new Point(
-                                            pointMap[pastedRowCells[i]].X * size.Width, 
-                                            pointMap[pastedRowCells[i]].Y * size.Height), 
-                                            size) 
-                                })][0];
-                            graph.ConnectedNodes[Link.NodeIndex][0].xPoint = (int)((int)temp.X*size.Width);
-                            graph.ConnectedNodes[Link.NodeIndex][0].yPoint = (int)((int)temp.Y*size.Height);
-                        }
-                            
-                        keyValuePairs[props[i]].Add(pastedRowCells[i]);
-                        if (tempNode != null)
-                        {
-                            
-                            if (!tempNode.Value.Relationships.ContainsKey(Link.Name))
-                            {
-                                //pointMap.Add(Link.Name + tempNode.Name, new Point(,) );
-                                graph.ConnectDirectToAndFromNode(Link.Name, tempNode.Name, 1);
-                                //Relationship rel = 
-                                tempNode.Value.Relationships.Add(Link.Name, new Relationship { 
-                                    Color = Colors.Wheat, 
-                                    FromEntity = graph.ConnectedNodes[tempNode.NodeIndex][0].Value, 
-                                    ToEntity = graph.ConnectedNodes[Link.NodeIndex][0].Value });
-                            }
-                        }
-                            
-                        tempNode = Link;
-                    }
-
-                }
-                relationshipHandler.Add(new RelationshipHandler(compositor, compositionGraphicsDevice, size, graph));
-                rootVisual.Children.InsertAtTop(relationshipHandler[0].Visual);
-                RenderDone = false;
-            }
-        }
-        
 
         async Task UpdateVisualsLoop()
         {
@@ -244,11 +160,9 @@ namespace CompositionExample
             while (!token.IsCancellationRequested && !RenderDone)
             {
                 
-                foreach(RelationshipHandler rh in relationshipHandler)
-               {
-                    UpdateVisual(rh.Visual, rh.Size);
-                    rh.Visual.Opacity = 1;
-                }
+                    UpdateVisual(relationshipHandler.Visual, relationshipHandler.Size);
+                    relationshipHandler.Visual.Opacity = 1;
+                
 
 
                 await Task.Delay(TimeSpan.FromSeconds(2));
@@ -318,10 +232,26 @@ namespace CompositionExample
 
             visual.StartAnimation("Offset", animation);
         }
-
+        
         void Window_PointerPressed(CoreWindow sender, PointerEventArgs args)
         {
-            //swapChainRenderer.Paused = !swapChainRenderer.Paused;
+            if(!pressOccured)
+            {
+                pressOccured = true;
+                MouseOrigin = args.CurrentPoint;
+                PointerDragOffset = new Vector2();
+                //sender.wind
+            } else
+            {
+                PointerDragOffset.X = (float)MouseOrigin.RawPosition.X;
+                PointerDragOffset.Y = (float)MouseOrigin.RawPosition.Y;
+                RenderDone = false;
+            }
+
+
+            UpdateVisual(rootVisual, size);
+                
+
 
         }
 

@@ -21,42 +21,40 @@ namespace CompositionExample
 {
     class RelationshipHandler
     {
+
         public SpriteVisual drawingSurfaceVisual;
         public CompositionDrawingSurface drawingSurface;
-
-        //int drawCount;
+        private Dictionary<string, List<string>> keyValuePairs;
+        private Dictionary<string, Point> pointMap;
 
         public Visual Visual { get { return drawingSurfaceVisual; } }
 
         public Size Size { get { return drawingSurface.Size; } }
-        //public RelationshipHandler RH;
+
         private Graph<Entity> graph;
-        //public Graph<Entity> graph;
-       // public Dictionary<string, int> RenderedXPoints;
-        //public Entity Entity;
+
         private Size EntitySize;
         public RelationshipHandler(Compositor compositor, 
             CompositionGraphicsDevice compositionGraphicsDevice, 
-            Size entitySize, 
-            Graph<Entity> graph) 
+            Size entitySize) 
         {
             this.EntitySize = entitySize;
-            this.graph = graph;
 
-                drawingSurfaceVisual = compositor.CreateSpriteVisual();
+            pointMap = new Dictionary<string, Point>();
+            drawingSurfaceVisual = compositor.CreateSpriteVisual();
+            graph = new Graph<Entity>(100000);
+            drawingSurface = compositionGraphicsDevice.CreateDrawingSurface(SetFromGraph(), 
+                DirectXPixelFormat.B8G8R8A8UIntNormalized, DirectXAlphaMode.Premultiplied);
+            drawingSurfaceVisual.Brush = compositor.CreateSurfaceBrush(drawingSurface);
                 
-                drawingSurface = compositionGraphicsDevice.CreateDrawingSurface(SetFromGraph(entitySize), 
-                    DirectXPixelFormat.B8G8R8A8UIntNormalized, DirectXAlphaMode.Premultiplied);
-                drawingSurfaceVisual.Brush = compositor.CreateSurfaceBrush(drawingSurface);
-                
-                compositionGraphicsDevice.RenderingDeviceReplaced += CompositionGraphicsDevice_RenderingDeviceReplaced;
-                DrawDrawingSurface();
+            compositionGraphicsDevice.RenderingDeviceReplaced += CompositionGraphicsDevice_RenderingDeviceReplaced;
+            DrawDrawingSurface();
         }
         private Dictionary<string, bool> CapturedRelationships;
         private Dictionary<string, int> CapturedEntities;
-        private Size SetFromGraph(Size entitySize)
+        private Size SetFromGraph()
         {
-            //OutputClipboardText();
+            OutputClipboardText();
             CapturedRelationships = new Dictionary<string, bool>();
             int MaxCount = 0;
 
@@ -157,6 +155,108 @@ namespace CompositionExample
 
             }
         }
+        public void OutputClipboardText()
+        {
+            try
+            {
+
+
+                graph = new Graph<Entity>(1000);
+                pointMap = new Dictionary<string, Point>();
+                List<string> props = new List<string>();
+                keyValuePairs = new Dictionary<string, List<string>>();
+
+
+                DataPackageView dataPackageView = Clipboard.GetContent();
+                if (dataPackageView.Contains(StandardDataFormats.Text))
+                {
+                    var task = Task.Run(async () => await dataPackageView.GetTextAsync());
+                    var result = task.Result;
+
+                    string text = result.ToString();
+                    string[] pastedRows = Regex.Split(text.TrimEnd("\r\n".ToCharArray()), "\r\n");
+
+
+                    int DescriptionCount = 1;
+                    foreach (string cell in pastedRows[0].Split(new char[] { '\t' }))
+                    {
+
+                        keyValuePairs.Add(cell, new List<string>());
+                        props.Add(cell);
+                        pointMap.Add(cell, new Point(DescriptionCount, 0));
+                        DescriptionCount += 1;
+                    }
+
+
+
+                    for (int r = 1; r < pastedRows.Length; r++)
+                    {
+                        string[] pastedRowCells = pastedRows[r].Split(new char[] { '\t' });
+
+                        GraphNode<Entity> tempNode = null;
+                        for (int i = 0; i < pastedRowCells.Length; i++)
+                        {
+                            GraphNode<Entity> Link = graph.BFS(pastedRowCells[i]);
+                            if (Link == null)
+                            {
+                                Point temp = new Point(pointMap[props[i]].X, pointMap[props[i]].Y + 1);
+                                if (!pointMap.ContainsKey(pastedRowCells[i]))
+                                    pointMap.Add(pastedRowCells[i], new Point(
+                                        (pointMap[props[i]].X) + ((pointMap[props[i]].X) * .10),
+                                        pointMap[props[i]].Y + ((pointMap[props[i]].Y) * .10)));
+                                pointMap[props[i]] = temp;
+
+                                Link = graph.ConnectedNodes[graph.AddNode(pastedRowCells[i],
+                                    new Entity
+                                    {
+                                        Name = pastedRowCells[i],
+                                        EntityColor = Colors.Black,
+                                        Description = props[i],
+                                        EntityShape = new Rect(
+                                            new Point(
+                                                pointMap[pastedRowCells[i]].X * EntitySize.Width,
+                                                pointMap[pastedRowCells[i]].Y * EntitySize.Height),
+                                                EntitySize)
+                                    })][0];
+                                graph.ConnectedNodes[Link.NodeIndex][0].xPoint = (int)((int)temp.X * EntitySize.Width);
+                                graph.ConnectedNodes[Link.NodeIndex][0].yPoint = (int)((int)temp.Y * EntitySize.Height);
+                            }
+
+                            keyValuePairs[props[i]].Add(pastedRowCells[i]);
+                            if (tempNode != null)
+                            {
+
+                                if (!tempNode.Value.Relationships.ContainsKey(Link.Name))
+                                {
+                                    //pointMap.Add(Link.Name + tempNode.Name, new Point(,) );
+                                    graph.ConnectDirectToAndFromNode(Link.Name, tempNode.Name, 1);
+                                    //Relationship rel = 
+                                    tempNode.Value.Relationships.Add(Link.Name, new Relationship
+                                    {
+                                        Color = Colors.Wheat,
+                                        FromEntity = graph.ConnectedNodes[tempNode.NodeIndex][0].Value,
+                                        ToEntity = graph.ConnectedNodes[Link.NodeIndex][0].Value
+                                    });
+                                }
+                            }
+
+                            tempNode = Link;
+                        }
+
+                    }
+
+                }
+            }
+            catch (Exception ex)
+            {
+                graph = new Graph<Entity>(1);
+                graph.AddNode("ERROR", new Entity { Description = ex.Message, Name = "ERROR", EntityShape = new Rect(0, 0, 200, 200) });
+
+            }
+        }
+
+
+
         private Point To(Entity ToEntity, Entity FromEntity)
         {
             Point point = new Point();
