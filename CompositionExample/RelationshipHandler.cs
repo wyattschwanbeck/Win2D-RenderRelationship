@@ -16,6 +16,7 @@ using Windows.UI.Composition;
 using Windows.Graphics.DirectX;
 using Microsoft.Graphics.Canvas.UI.Composition;
 using Microsoft.Graphics.Canvas.Text;
+using Microsoft.Graphics.Canvas.Geometry;
 
 namespace CompositionExample
 {
@@ -34,17 +35,20 @@ namespace CompositionExample
         private Graph<Entity> graph;
 
         private Size EntitySize;
+        //private CanvasPathBuilder cpb;
         public RelationshipHandler(Compositor compositor, 
             CompositionGraphicsDevice compositionGraphicsDevice, 
             Size entitySize) 
         {
             this.EntitySize = entitySize;
+            
 
             pointMap = new Dictionary<string, Point>();
             drawingSurfaceVisual = compositor.CreateSpriteVisual();
             graph = new Graph<Entity>(100000);
             drawingSurface = compositionGraphicsDevice.CreateDrawingSurface(SetFromGraph(), 
                 DirectXPixelFormat.B8G8R8A8UIntNormalized, DirectXAlphaMode.Premultiplied);
+           
             drawingSurfaceVisual.Brush = compositor.CreateSurfaceBrush(drawingSurface);
                 
             compositionGraphicsDevice.RenderingDeviceReplaced += CompositionGraphicsDevice_RenderingDeviceReplaced;
@@ -143,11 +147,13 @@ namespace CompositionExample
 
                             GraphNode<Entity> link = graph.BFS(rl.ToEntity.Name);
 
-                            Rect ToShape = VisibleRects[rl.ToEntity.Name];//new Rect { Height = rl.Size().Height, Width = rl.Size().Width, X = link.xPoint * 1.25, Y = link.yPoint * .75 };
+                            Rect ToShape = VisibleRects[rl.ToEntity.Name];
                             Point To = this.To(new Entity { EntityShape = ToShape }, new Entity { EntityShape = TempShape });
                             Point From = this.From(new Entity { EntityShape = ToShape }, new Entity { EntityShape = TempShape });
 
                             ds.DrawLine(new Vector2((float)From.X, (float)From.Y), new Vector2((float)To.X, (float)To.Y), Colors.Black);
+                            //CanvasPathBuilder canvasPathBuilder = new CanvasPathBuilder(this.);
+
                         }
                     }
 
@@ -230,7 +236,6 @@ namespace CompositionExample
                                 {
                                     //pointMap.Add(Link.Name + tempNode.Name, new Point(,) );
                                     graph.ConnectDirectToAndFromNode(Link.Name, tempNode.Name, 1);
-                                    //Relationship rel = 
                                     tempNode.Value.Relationships.Add(Link.Name, new Relationship
                                     {
                                         Color = Colors.Wheat,
@@ -250,7 +255,7 @@ namespace CompositionExample
             catch (Exception ex)
             {
                 graph = new Graph<Entity>(1);
-                graph.AddNode("ERROR", new Entity { Description = ex.Message, Name = "ERROR", EntityShape = new Rect(0, 0, 200, 200) });
+                graph.AddNode(ex.Message, new Entity { Description = "ERROR", Name = ex.Message, EntityShape = new Rect(0, 0, 400, 400) });
 
             }
         }

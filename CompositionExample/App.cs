@@ -27,20 +27,22 @@ namespace CompositionExample
 {
     class App : IFrameworkView
     {
-        bool RenderDone = false;
+        //bool RenderDone = false;
         CoreWindow window;
         Compositor compositor;
         ContainerVisual rootVisual;
         CompositionTarget compositionTarget;
         CanvasDevice device;
         CompositionGraphicsDevice compositionGraphicsDevice;
+        //CanvasSwapChain CanvasSwapChain;
+
         RelationshipHandler relationshipHandler;
-        //List<RelationshipLine> relationshipLines;
+        SwapChainRenderer swapChainRenderer;
+
+        //Pointer variables to support dragging
         bool pressOccured = false;
-        Windows.UI.Input.PointerPoint MouseOrigin;
-
-
-        private Vector2 PointerDragOffset;
+        //Windows.UI.Input.PointerPoint MouseOrigin;
+        private Vector3 PointerDragOffset;
 
         CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
         Random rnd = new Random();
@@ -49,18 +51,14 @@ namespace CompositionExample
         Size size;
         public void Initialize(CoreApplicationView applicationView)
         {
-
-            
-            //relationshipLines = new List<RelationshipLine>();
             applicationView.Activated += applicationView_Activated;
-            RenderDone = false;
-            
+            //RenderDone = false;
             
         }
 
         private void Window_PointerWheelChanged(CoreWindow sender, PointerEventArgs args)
         {
-            RenderDone = false;
+            //RenderDone = false;
             ScrollOffset += args.CurrentPoint.Properties.MouseWheelDelta;
             var ignoredTask = UpdateVisualsLoop();
             
@@ -68,13 +66,13 @@ namespace CompositionExample
 
         private void Window_SizeChanged(CoreWindow sender, WindowSizeChangedEventArgs args)
         {
-            RenderDone = false;
+            //RenderDone = false;
             var ignoredTask = UpdateVisualsLoop();
         }
 
         public void Uninitialize()
         {
-            //swapChainRenderer?.Dispose();
+            swapChainRenderer?.Dispose();
             cancellationTokenSource.Cancel();
         }
 
@@ -97,9 +95,15 @@ namespace CompositionExample
         {
             this.window = window;
             OgSize = new Vector2((float)window.Bounds.Width, (float)window.Bounds.Height);
+
+            //Event subscribing for user interactions updating visuals
             Clipboard.ContentChanged += Clipboard_ContentChanged;
             window.SizeChanged += Window_SizeChanged;
             window.PointerWheelChanged += Window_PointerWheelChanged;
+            window.PointerMoved += Window_PointerMoved;
+            window.PointerReleased += Window_PointerReleased;
+
+            
 
             if (!Windows.Foundation.Metadata.ApiInformation.IsApiContractPresent("Windows.Foundation.UniversalApiContract", 2))
             {
@@ -118,17 +122,23 @@ namespace CompositionExample
 
             CreateDevice();
 
+            
+
             size = new Size(window.Bounds.Width,window.Bounds.Height);
             size.Width *= 0.10;
             size.Height *= 0.10;
-            
+            swapChainRenderer = new SwapChainRenderer(compositor, size);
+            swapChainRenderer.SetDevice(device, new Size(window.Bounds.Width, window.Bounds.Height));
             rootVisual = compositor.CreateContainerVisual();
             compositionTarget = compositor.CreateTargetForCurrentView();
             compositionTarget.Root = rootVisual;
+
             relationshipHandler = new RelationshipHandler(compositor, compositionGraphicsDevice, size);
-            RenderDone = false;
+
             var ignoredTask = UpdateVisualsLoop();
         }
+
+        
 
         private void Clipboard_ContentChanged(object sender, object e)
         {
@@ -140,33 +150,27 @@ namespace CompositionExample
             
             compositionTarget.Root = rootVisual;
             relationshipHandler=  new RelationshipHandler(compositor, compositionGraphicsDevice, size);
-            
-            rootVisual.Children.InsertAtTop(relationshipHandler.Visual);
-            RenderDone = false;
-            //relationshipHandler.Clear();
+            swapChainRenderer = new SwapChainRenderer(compositor,size);
+            swapChainRenderer.SetDevice(device, new Size(window.Bounds.Height, window.Bounds.Width));
+            //rootVisual.Children.InsertAtTop(relationshipHandler.Visual);
+            rootVisual.Children.InsertAtTop(swapChainRenderer.Visual);
+            //RenderDone = false;
             
             var ignoredTask = UpdateVisualsLoop();
-
         }
       
-
-        
-
-
         async Task UpdateVisualsLoop()
         {
             var token = cancellationTokenSource.Token;
 
-            while (!token.IsCancellationRequested && !RenderDone)
+            while (!token.IsCancellationRequested)
             {
                 
-                    UpdateVisual(relationshipHandler.Visual, relationshipHandler.Size);
-                    relationshipHandler.Visual.Opacity = 1;
-                
-
+                UpdateVisual(swapChainRenderer.Visual, swapChainRenderer.Size);
+                swapChainRenderer.Visual.Opacity = 1;
 
                 await Task.Delay(TimeSpan.FromSeconds(2));
-                RenderDone = true;
+                //RenderDone = true;
             }
         }
 
@@ -175,28 +179,28 @@ namespace CompositionExample
             UpdateVisualPosition(visual, size);
             UpdateVisualOpacity(visual);
         }
-
+        Vector2 newVisSize;
+        Vector2 newSize;
+        Vector2 oldVisSize;
+        Vector2 Proportion;
         void UpdateVisualPosition(Visual visual, Size size)
         {
-            var oldOffset = visual.Offset;
-            Vector2 newSize = new Vector2((float)window.Bounds.Width, (float)window.Bounds.Height);
-            Vector2 oldVisSize = new Vector2((float)size.Width, (float)size.Height);
-            Vector2 newVisSize =  (oldVisSize * (newSize / OgSize));
+            
+            newSize = new Vector2((float)window.Bounds.Width, (float)window.Bounds.Height);
+            oldVisSize = new Vector2((float)size.Width, (float)size.Height);
+            
+            newVisSize =  (oldVisSize * (newSize / OgSize));
+            
             newVisSize.X += ScrollOffset;
             newVisSize.Y += ScrollOffset;
-            var newOffset = new Vector3(
-                (float)(((visual.CenterPoint.X) * newVisSize.X)),
-                (float)(((visual.CenterPoint.Y) * newVisSize.Y)),
-                0);
-            visual.Offset = newOffset;
 
+            Proportion = newVisSize / oldVisSize;
 
             if (newVisSize != oldVisSize)
             {
                 AnimateSizeChange(visual, oldVisSize, newVisSize);
-                AnimateOffset(visual, oldOffset, newOffset);
             }
-                
+            
         }
 
         
@@ -226,35 +230,55 @@ namespace CompositionExample
         void AnimateOffset(Visual visual, Vector3 oldOffset, Vector3 newOffset)
         {
             var animation = compositor.CreateVector3KeyFrameAnimation();
-            animation.InsertKeyFrame(0, oldOffset);
+            animation.InsertKeyFrame(1, oldOffset);
             animation.InsertKeyFrame(1, newOffset);
-            animation.Duration = TimeSpan.FromSeconds(1);
+            animation.Duration = TimeSpan.FromSeconds(.05);
 
             visual.StartAnimation("Offset", animation);
         }
-        
+        private bool updateSwapChainEntity = false;
         void Window_PointerPressed(CoreWindow sender, PointerEventArgs args)
         {
-            if(!pressOccured)
-            {
-                pressOccured = true;
-                MouseOrigin = args.CurrentPoint;
-                PointerDragOffset = new Vector2();
-                //sender.wind
-            } else
-            {
-                PointerDragOffset.X = (float)MouseOrigin.RawPosition.X;
-                PointerDragOffset.Y = (float)MouseOrigin.RawPosition.Y;
-                RenderDone = false;
-            }
-
-
-            UpdateVisual(rootVisual, size);
-                
+            pressOccured = true;
+            PointerDragOffset = new Vector3();
+            
+            updateSwapChainEntity = swapChainRenderer.CheckEntitySelected(args.CurrentPoint,Proportion );
 
 
         }
+        private void Window_PointerReleased(CoreWindow sender, PointerEventArgs args)
+        {
+            pressOccured = false;
+            updateSwapChainEntity = false;
+            LastPoint.X = 0;
+            LastPoint.Y = 0;
+            swapChainRenderer.PointChange = new Point();
+        }
+        private Vector2 LastPoint;
+        private void Window_PointerMoved(CoreWindow sender, PointerEventArgs args)
+        {
+            if (pressOccured && LastPoint != null && !updateSwapChainEntity)
+            {
+                PointerDragOffset.X = (float)(rootVisual.Offset.X + (args.CurrentPoint.Position.X - LastPoint.X));
+                PointerDragOffset.Y = (float)(rootVisual.Offset.Y + (args.CurrentPoint.Position.Y - LastPoint.Y));
 
+                rootVisual.Offset = PointerDragOffset;
+                LastPoint.X = (float)args.CurrentPoint.Position.X;
+                LastPoint.Y = (float)args.CurrentPoint.Position.Y;
+
+            }
+            else if(LastPoint !=null && pressOccured && updateSwapChainEntity)
+            {
+                PointerDragOffset.X = (float)(rootVisual.Offset.X + (args.CurrentPoint.Position.X - LastPoint.X));
+                PointerDragOffset.Y = (float)(rootVisual.Offset.Y + (args.CurrentPoint.Position.Y - LastPoint.Y));
+                swapChainRenderer.PointChange.X = args.CurrentPoint.Position.X- LastPoint.X;
+                swapChainRenderer.PointChange.Y = args.CurrentPoint.Position.Y- LastPoint.Y;
+
+            }
+            LastPoint = new Vector2();
+            LastPoint.X = (float)args.CurrentPoint.Position.X;
+            LastPoint.Y = (float)args.CurrentPoint.Position.Y;
+        }
 
         void CoreApplication_Suspending(object sender, SuspendingEventArgs args)
         {
@@ -282,8 +306,6 @@ namespace CompositionExample
                 CanvasComposition.SetCanvasDevice(compositionGraphicsDevice, device);
             }
 
-            //if (swapChainRenderer != null)
-                //swapChainRenderer.SetDevice(device, new Size(window.Bounds.Width, window.Bounds.Height));
         }
 
         void Device_DeviceLost(CanvasDevice sender, object args)
