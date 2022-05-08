@@ -23,6 +23,10 @@ namespace CompositionExample
         Compositor compositor;
         CanvasSwapChain swapChain;
         SpriteVisual swapChainVisual;
+
+        CanvasSwapChain selectedSwapChain;
+        SpriteVisual selectedSwapChainVisual;
+
         CancellationTokenSource drawLoopCancellationTokenSource;
 
         Dictionary<string, List<string>> keyValuePairs;
@@ -33,6 +37,7 @@ namespace CompositionExample
         private Dictionary<string, Rect> VisibleRects;
 
         private Graph<Entity> graph;
+        private GraphNode<Entity> GraphEntity;
 
         private Size EntitySize;
 
@@ -43,7 +48,7 @@ namespace CompositionExample
 
         volatile Windows.UI.Input.PointerPoint CurrentPointer;
         public Point PointChange;
-        
+        public volatile bool renderUpdate=true;
         //private Point check;
         public bool CheckEntitySelected(Windows.UI.Input.PointerPoint pointerPoint, Vector2 SizeOffset)
         {
@@ -51,7 +56,7 @@ namespace CompositionExample
             //SizeOffset.X -= this.Visual.Parent.Offset.X;
             //SizeOffset.Y -= this.Visual.Parent.Offset.Y;
             
-            if (VisibleRects !=null)
+            if (VisibleRects !=null && this.Visual.Parent!=null)
                 foreach(var rect in VisibleRects)
                 {
                     //SizeOffset =(SizeOffset / this.Visual.Size);
@@ -64,6 +69,8 @@ namespace CompositionExample
                     {
                         CurrentPointer = pointerPoint;
                         entitySelected = rect.Key;
+                        GraphEntity = graph.BFS(entitySelected);
+                        renderUpdate = false;
                         return true;
                     }
                        
@@ -76,7 +83,7 @@ namespace CompositionExample
         {
             CurrentPointer = null;
             entitySelected=null;
-
+            renderUpdate = true;
         }
 
         
@@ -84,7 +91,7 @@ namespace CompositionExample
         public Windows.UI.Input.PointerPoint ClickedArea { get; set; }
 
         public Visual Visual { get { return swapChainVisual; } }
-
+        public Visual SelectedVisual { get { return selectedSwapChainVisual; } }
         public Size Size
         {
             get
@@ -102,6 +109,7 @@ namespace CompositionExample
             VisibleRects = new Dictionary<string, Rect>();
             this.compositor = compositor;
             swapChainVisual = compositor.CreateSpriteVisual();
+            selectedSwapChainVisual = compositor.CreateSpriteVisual();
            
         }
 
@@ -119,7 +127,8 @@ namespace CompositionExample
             Size size = SetFromGraph();
             swapChain = new CanvasSwapChain(device, (float)size.Width, (float)size.Height, 96);
             swapChainVisual.Brush = compositor.CreateSurfaceBrush(CanvasComposition.CreateCompositionSurfaceForSwapChain(compositor, swapChain));
-
+            selectedSwapChain = new CanvasSwapChain(device, (float)size.Width, (float)size.Height, 96);
+            selectedSwapChainVisual.Brush = compositor.CreateSurfaceBrush(CanvasComposition.CreateCompositionSurfaceForSwapChain(compositor, selectedSwapChain));
             drawLoopCancellationTokenSource = new CancellationTokenSource();
             Task.Factory.StartNew(
                 DrawLoop,
@@ -171,7 +180,7 @@ namespace CompositionExample
             //Setting Visible rects dictionary
             foreach (List<GraphNode<Entity>> ent in graph.ConnectedNodes)
             {
-                if (ent != null)
+                if (ent != null && ent[0].Name!="")
                 {
                     GraphNode<Entity> e = ent[0];
                     Rect TempShape = new Rect { Height = this.EntitySize.Height, Width = this.EntitySize.Width, X = e.xPoint * 1.25, Y = e.yPoint * 1.25 };
@@ -196,7 +205,7 @@ namespace CompositionExample
                 // Tracking the previous pause state lets us draw once even after becoming paused,
                 // so the label text can change to indicate the paused state.
                 //bool wasPaused = false;
-                DrawSwapChain(swapChain);
+                //DrawSwapChain(swapChain);
                 while (!canceled.IsCancellationRequested)
                 {
 
@@ -210,15 +219,21 @@ namespace CompositionExample
                         VisibleRects[entitySelected] = new Rect(
                             PointChange.X + VisibleRects[entitySelected].X, PointChange.Y + VisibleRects[entitySelected].Y,
                             VisibleRects[entitySelected].Width, VisibleRects[entitySelected].Height);
-                        DrawSwapChain(swapChain);
+                        DrawSwapChain(selectedSwapChain,GraphEntity);
                     }
-                    
-                    
+                    else if(renderUpdate)
+                    {
+                        DrawSwapChain(swapChain);
+                        renderUpdate = false;
+                    }
+
+
 
                     //wasPaused = isPaused;
                 }
 
-                swapChain.Dispose();
+                //swapChain.Dispose();
+                //selectedSwapChain.Dispose();
             }
             catch (Exception e) when (swapChain.Device.IsDeviceLost(e.HResult))
             {
@@ -288,7 +303,7 @@ namespace CompositionExample
             {
                 foreach (List<GraphNode<Entity>> ent in graph.ConnectedNodes)
                 {
-                    if (ent != null)
+                    if (ent != null && ent[0].Name!="")
                     {
                         GraphNode<Entity> e = ent[0];
                         Rect TempShape = VisibleRects[e.Name];
@@ -312,17 +327,18 @@ namespace CompositionExample
                 }
                 foreach (List<GraphNode<Entity>> ent in graph.ConnectedNodes)
                 {
-                    if (ent != null)
+                    if (ent != null && ent[0].Name!="")
                     {
                         GraphNode<Entity> e = ent[0];
                         Rect TempShape = VisibleRects[e.Name];
 
-                        foreach (Relationship rl in e.Value.Relationships.Values)
+                        foreach (GraphNode<Entity> link in graph.ConnectedNodes[e.NodeIndex])
                         {
 
-                            GraphNode<Entity> link = graph.BFS(rl.ToEntity.Name);
 
-                            Rect ToShape = VisibleRects[rl.ToEntity.Name];
+                            //GraphNode<Entity> link = graph.BFS(rl.ToEntity.Name);
+
+                            Rect ToShape = VisibleRects[link.Name];
                             Point To = this.To(new Entity { EntityShape = ToShape }, new Entity { EntityShape = TempShape });
                             Point From = this.From(new Entity { EntityShape = ToShape }, new Entity { EntityShape = TempShape });
 
@@ -336,6 +352,52 @@ namespace CompositionExample
 
             }
             swapChain.Present();
+        }
+
+        void DrawSwapChain(CanvasSwapChain swapChain, GraphNode<Entity> e)
+        {
+            if(e!=null)
+            using (var ds = selectedSwapChain.CreateDrawingSession(Colors.Transparent))
+            {
+                //foreach (List<GraphNode<Entity>> ent in )
+                //{
+                //    if (ent != null)
+                //    {
+                //GraphNode<Entity> e = graph.BFS(entitySelected);
+                
+                    Rect TempShape = VisibleRects[e.Name];
+                    ds.FillRoundedRectangle(TempShape, 10, 10, Colors.Transparent);
+                    ds.DrawRoundedRectangle(TempShape, 10, 10, Colors.Gray, 2);
+                    //VisibleRects.Add(e.Name, TempShape);
+                    if (TempShape.Y - TempShape.Height < TempShape.Height)
+                        ds.DrawText(e.Value.Description, new Vector2 { X = (float)((float)TempShape.X), Y = (float)(TempShape.Y - e.yPoint) }, Colors.Black);
+
+
+                    ds.DrawText(e.Name, TempShape, Colors.Gray, new CanvasTextFormat()
+                    {
+                        FontFamily = "Arial",
+                        FontSize = 12,
+                        WordWrapping = CanvasWordWrapping.WholeWord,
+                        VerticalAlignment = CanvasVerticalAlignment.Center,
+                        HorizontalAlignment = CanvasHorizontalAlignment.Center
+                    });
+
+                foreach (GraphNode<Entity> link in graph.ConnectedNodes[e.NodeIndex])
+                {
+
+                    // = graph.BFS(rl.ToEntity.Name);
+
+                    Rect ToShape = VisibleRects[link.Name];
+                    Point To = this.To(new Entity { EntityShape = ToShape }, new Entity { EntityShape = TempShape });
+                    Point From = this.From(new Entity { EntityShape = ToShape }, new Entity { EntityShape = TempShape });
+
+                    ds.DrawLine(new Vector2((float)From.X, (float)From.Y), new Vector2((float)To.X, (float)To.Y), Colors.Black);
+                    //CanvasPathBuilder canvasPathBuilder = new CanvasPathBuilder(this.);
+
+                }
+
+            }
+            selectedSwapChain.Present();
         }
         public void OutputClipboardText()
         {

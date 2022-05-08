@@ -25,7 +25,18 @@ namespace CompositionExample
             if (ToEntity.EntityShape.Top>=FromEntity.EntityShape.Top)
             {
                 //To entity is further down, set point Y to reflect mid point to be the top point of the rect
-                point.Y=ToEntity.EntityShape.Top;
+                if (ToEntity.EntityShape.Top >= FromEntity.EntityShape.Top)
+                        
+                if(ToEntity.EntityShape.Bottom >= FromEntity.EntityShape.Top)
+                {
+                        //Bottom is above entity
+                        point.Y = ToEntity.EntityShape.Top;
+                        
+                }
+                {
+                    //Connect Mid Y
+                    point.Y = ToEntity.EntityShape.Top+(ToEntity.EntityShape.Height/2);
+                }
             }
             else
             {
@@ -35,8 +46,17 @@ namespace CompositionExample
 
             if (ToEntity.EntityShape.Left >=FromEntity.EntityShape.Left)
             {
-                //To entity is further right. set the x point to the left of the to entity
-                point.X = ToEntity.EntityShape.Left;
+                
+                if(ToEntity.EntityShape.Left+ ToEntity.EntityShape.Width >= FromEntity.EntityShape.Left)
+                    //To entity is further right. set the x point to the left of the to entity
+                    point.X = ToEntity.EntityShape.Left;
+                else
+                {
+                    //Connect center
+                    point.X = ToEntity.EntityShape.Left+(ToEntity.EntityShape.Width/2);
+
+                }
+                
 
             } else
             {
@@ -46,30 +66,73 @@ namespace CompositionExample
         }
         public Point From()
         {
+            //Point point = new Point();
+            //if (FromEntity.EntityShape.Top >= ToEntity.EntityShape.Top)
+            //{
+            //    //To entity is further down, set point Y to reflect mid point to be the top point of the rect
+            //    point.Y = Math.Max(FromEntity.EntityShape.Top,10);
+            //}
+            //else
+            //{
+            //    //To entity is above, set the point to the bottom of the entity
+            //    point.Y = Math.Max(FromEntity.EntityShape.Bottom,10);
+
+            //}
+
+            //if (FromEntity.EntityShape.Left >= ToEntity.EntityShape.Left)
+            //{
+            //    //To entity is further right. set the x point to the left of the to entity
+            //    point.X = Math.Max(FromEntity.EntityShape.Left,10);
+
+            //}
+            //else
+            //{
+            //    point.X = Math.Max(FromEntity.EntityShape.Right,10);
+            //}
+
+            //return point;
             Point point = new Point();
             if (FromEntity.EntityShape.Top >= ToEntity.EntityShape.Top)
             {
                 //To entity is further down, set point Y to reflect mid point to be the top point of the rect
-                point.Y = Math.Max(FromEntity.EntityShape.Top,10);
+                if (FromEntity.EntityShape.Top >= ToEntity.EntityShape.Top)
+
+                    if (FromEntity.EntityShape.Bottom >= ToEntity.EntityShape.Top)
+                    {
+                        //Bottom is above entity
+                        point.Y = FromEntity.EntityShape.Top;
+
+                    }
+                {
+                    //Connect Mid Y
+                    point.Y = FromEntity.EntityShape.Top + (FromEntity.EntityShape.Height / 2);
+                }
             }
             else
             {
                 //To entity is above, set the point to the bottom of the entity
-                point.Y = Math.Max(FromEntity.EntityShape.Bottom,10);
-                
+                point.Y = FromEntity.EntityShape.Bottom;
             }
 
             if (FromEntity.EntityShape.Left >= ToEntity.EntityShape.Left)
             {
-                //To entity is further right. set the x point to the left of the to entity
-                point.X = Math.Max(FromEntity.EntityShape.Left,10);
+
+                if (FromEntity.EntityShape.Left + ToEntity.EntityShape.Width >= ToEntity.EntityShape.Left)
+                    //To entity is further right. set the x point to the left of the to entity
+                    point.X = FromEntity.EntityShape.Left;
+                else
+                {
+                    //Connect center
+                    point.X = FromEntity.EntityShape.Left + (ToEntity.EntityShape.Width / 2);
+
+                }
+
 
             }
             else
             {
-                point.X = Math.Max(FromEntity.EntityShape.Right,10);
+                point.X = FromEntity.EntityShape.Right;
             }
-
             return point;
         }
 

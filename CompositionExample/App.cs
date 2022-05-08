@@ -36,7 +36,7 @@ namespace CompositionExample
         CompositionGraphicsDevice compositionGraphicsDevice;
         //CanvasSwapChain CanvasSwapChain;
 
-        RelationshipHandler relationshipHandler;
+        //RelationshipHandler relationshipHandler;
         SwapChainRenderer swapChainRenderer;
 
         //Pointer variables to support dragging
@@ -58,16 +58,17 @@ namespace CompositionExample
 
         private void Window_PointerWheelChanged(CoreWindow sender, PointerEventArgs args)
         {
-            //RenderDone = false;
+            //swapChainRenderer.renderUpdate = true;
             ScrollOffset += args.CurrentPoint.Properties.MouseWheelDelta;
-            var ignoredTask = UpdateVisualsLoop();
-            
+            swapChainRenderer.renderUpdate = true;
+            //var ignoredTask = UpdateVisualsLoop();
+
         }
 
         private void Window_SizeChanged(CoreWindow sender, WindowSizeChangedEventArgs args)
         {
-            //RenderDone = false;
-            var ignoredTask = UpdateVisualsLoop();
+            swapChainRenderer.renderUpdate = true;
+            //var ignoredTask = UpdateVisualsLoop();
         }
 
         public void Uninitialize()
@@ -133,9 +134,9 @@ namespace CompositionExample
             compositionTarget = compositor.CreateTargetForCurrentView();
             compositionTarget.Root = rootVisual;
 
-            relationshipHandler = new RelationshipHandler(compositor, compositionGraphicsDevice, size);
+            //relationshipHandler = new RelationshipHandler(compositor, compositionGraphicsDevice, size);
 
-            var ignoredTask = UpdateVisualsLoop();
+            //var ignoredTask = UpdateVisualsLoop();
         }
 
         
@@ -149,11 +150,12 @@ namespace CompositionExample
             rootVisual = compositor.CreateContainerVisual();
             
             compositionTarget.Root = rootVisual;
-            relationshipHandler=  new RelationshipHandler(compositor, compositionGraphicsDevice, size);
+            //relationshipHandler=  new RelationshipHandler(compositor, compositionGraphicsDevice, size);
             swapChainRenderer = new SwapChainRenderer(compositor,size);
             swapChainRenderer.SetDevice(device, new Size(window.Bounds.Height, window.Bounds.Width));
             //rootVisual.Children.InsertAtTop(relationshipHandler.Visual);
             rootVisual.Children.InsertAtTop(swapChainRenderer.Visual);
+            rootVisual.Children.InsertAtTop(swapChainRenderer.SelectedVisual);
             //RenderDone = false;
             
             var ignoredTask = UpdateVisualsLoop();
@@ -165,11 +167,23 @@ namespace CompositionExample
 
             while (!token.IsCancellationRequested)
             {
+                //if(!swapChainRenderer.renderUpdate)
+                //{
+                    swapChainRenderer.Visual.Opacity = 1;
+                    swapChainRenderer.SelectedVisual.Opacity = 0;
+                    UpdateVisual(swapChainRenderer.Visual, swapChainRenderer.Size);
+                    
+                //}
+                if(updateSwapChainEntity)
+                {
+                    swapChainRenderer.SelectedVisual.Opacity = 1;
+                    swapChainRenderer.Visual.Opacity = .5f;
+                    UpdateVisual(swapChainRenderer.SelectedVisual, swapChainRenderer.Size);
+                    
+                }
                 
-                UpdateVisual(swapChainRenderer.Visual, swapChainRenderer.Size);
-                swapChainRenderer.Visual.Opacity = 1;
 
-                await Task.Delay(TimeSpan.FromSeconds(2));
+                await Task.Delay(TimeSpan.FromSeconds(.05));
                 //RenderDone = true;
             }
         }
@@ -194,12 +208,14 @@ namespace CompositionExample
             newVisSize.X += ScrollOffset;
             newVisSize.Y += ScrollOffset;
 
-            Proportion = newVisSize / oldVisSize;
+            
 
             if (newVisSize != oldVisSize)
             {
+                Proportion = newVisSize / oldVisSize;
                 AnimateSizeChange(visual, oldVisSize, newVisSize);
             }
+            
             
         }
 
@@ -222,7 +238,7 @@ namespace CompositionExample
             var animation = compositor.CreateVector2KeyFrameAnimation();
             animation.InsertKeyFrame(1, oldSize);
             animation.InsertKeyFrame(1, newSize);
-            animation.Duration = TimeSpan.FromSeconds(0.5);
+            animation.Duration = TimeSpan.FromSeconds(0.05);
 
             visual.StartAnimation("Size", animation);
         }
@@ -252,7 +268,10 @@ namespace CompositionExample
             updateSwapChainEntity = false;
             LastPoint.X = 0;
             LastPoint.Y = 0;
+            
             swapChainRenderer.PointChange = new Point();
+            swapChainRenderer.ResetSelection();
+            //var ignoredTask = UpdateVisualsLoop();
         }
         private Vector2 LastPoint;
         private void Window_PointerMoved(CoreWindow sender, PointerEventArgs args)
@@ -265,14 +284,15 @@ namespace CompositionExample
                 rootVisual.Offset = PointerDragOffset;
                 LastPoint.X = (float)args.CurrentPoint.Position.X;
                 LastPoint.Y = (float)args.CurrentPoint.Position.Y;
+                //
 
             }
             else if(LastPoint !=null && pressOccured && updateSwapChainEntity)
             {
                 PointerDragOffset.X = (float)(rootVisual.Offset.X + (args.CurrentPoint.Position.X - LastPoint.X));
                 PointerDragOffset.Y = (float)(rootVisual.Offset.Y + (args.CurrentPoint.Position.Y - LastPoint.Y));
-                swapChainRenderer.PointChange.X = args.CurrentPoint.Position.X- LastPoint.X;
-                swapChainRenderer.PointChange.Y = args.CurrentPoint.Position.Y- LastPoint.Y;
+                swapChainRenderer.PointChange.X = (args.CurrentPoint.Position.X- LastPoint.X);
+                swapChainRenderer.PointChange.Y = (args.CurrentPoint.Position.Y- LastPoint.Y);
 
             }
             LastPoint = new Vector2();
