@@ -125,9 +125,10 @@ namespace CompositionExample
 
             drawLoopCancellationTokenSource?.Cancel();
             Size size = SetFromGraph();
-            swapChain = new CanvasSwapChain(device, (float)size.Width, (float)size.Height, 96);
+            float MaxWidthHeight = (float)Math.Max(size.Width, size.Height);
+            swapChain = new CanvasSwapChain(device, MaxWidthHeight, MaxWidthHeight, 96);
             swapChainVisual.Brush = compositor.CreateSurfaceBrush(CanvasComposition.CreateCompositionSurfaceForSwapChain(compositor, swapChain));
-            selectedSwapChain = new CanvasSwapChain(device, (float)size.Width, (float)size.Height, 96);
+            selectedSwapChain = new CanvasSwapChain(device, MaxWidthHeight, MaxWidthHeight, 96);
             selectedSwapChainVisual.Brush = compositor.CreateSurfaceBrush(CanvasComposition.CreateCompositionSurfaceForSwapChain(compositor, selectedSwapChain));
             drawLoopCancellationTokenSource = new CancellationTokenSource();
             Task.Factory.StartNew(

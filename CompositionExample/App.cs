@@ -59,15 +59,19 @@ namespace CompositionExample
         private void Window_PointerWheelChanged(CoreWindow sender, PointerEventArgs args)
         {
             //swapChainRenderer.renderUpdate = true;
-            ScrollOffset += args.CurrentPoint.Properties.MouseWheelDelta;
-            swapChainRenderer.renderUpdate = true;
+            ScrollOffset+= args.CurrentPoint.Properties.MouseWheelDelta;
+            
+            //swapChainRenderer.renderUpdate = true;
+            //newVisSize = (oldVisSize * (newSize / OgSize));
+
+            
             //var ignoredTask = UpdateVisualsLoop();
 
         }
 
         private void Window_SizeChanged(CoreWindow sender, WindowSizeChangedEventArgs args)
         {
-            swapChainRenderer.renderUpdate = true;
+            //swapChainRenderer.renderUpdate = true;
             //var ignoredTask = UpdateVisualsLoop();
         }
 
@@ -134,9 +138,6 @@ namespace CompositionExample
             compositionTarget = compositor.CreateTargetForCurrentView();
             compositionTarget.Root = rootVisual;
 
-            //relationshipHandler = new RelationshipHandler(compositor, compositionGraphicsDevice, size);
-
-            //var ignoredTask = UpdateVisualsLoop();
         }
 
         
@@ -167,21 +168,22 @@ namespace CompositionExample
 
             while (!token.IsCancellationRequested)
             {
-                //if(!swapChainRenderer.renderUpdate)
-                //{
-                    swapChainRenderer.Visual.Opacity = 1;
-                    swapChainRenderer.SelectedVisual.Opacity = 0;
-                    UpdateVisual(swapChainRenderer.Visual, swapChainRenderer.Size);
-                    
-                //}
+                
                 if(updateSwapChainEntity)
                 {
                     swapChainRenderer.SelectedVisual.Opacity = 1;
-                    swapChainRenderer.Visual.Opacity = .5f;
+                    swapChainRenderer.Visual.Opacity = .75f;
                     UpdateVisual(swapChainRenderer.SelectedVisual, swapChainRenderer.Size);
                     
                 }
-                
+                else if (!swapChainRenderer.renderUpdate)
+                {
+                    swapChainRenderer.Visual.Opacity = 1;
+                    swapChainRenderer.SelectedVisual.Opacity = 0;
+                    UpdateVisual(swapChainRenderer.Visual, swapChainRenderer.Size);
+
+                }
+
 
                 await Task.Delay(TimeSpan.FromSeconds(.05));
                 //RenderDone = true;
@@ -194,25 +196,34 @@ namespace CompositionExample
             UpdateVisualOpacity(visual);
         }
         Vector2 newVisSize;
-        Vector2 newSize;
+       //Vector2 newSize;
         Vector2 oldVisSize;
         Vector2 Proportion;
         void UpdateVisualPosition(Visual visual, Size size)
         {
-            
-            newSize = new Vector2((float)window.Bounds.Width, (float)window.Bounds.Height);
-            oldVisSize = new Vector2((float)size.Width, (float)size.Height);
-            
-            newVisSize =  (oldVisSize * (newSize / OgSize));
-            
-            newVisSize.X += ScrollOffset;
-            newVisSize.Y += ScrollOffset;
 
-            
-
-            if (newVisSize != oldVisSize)
+            //newSize = new Vector2((float)window.Bounds.Width, (float)window.Bounds.Height);
+            //oldVisSize = new Vector2((float)size.Width, (float)size.Height);
+            if(newVisSize.X<=0 || newVisSize.Y <= 0)
             {
-                Proportion = newVisSize / oldVisSize;
+                newVisSize.X = rootVisual.Size.X + ScrollOffset;
+                newVisSize.Y = rootVisual.Size.Y + ScrollOffset;
+            } else
+            {
+                newVisSize.X += ScrollOffset;
+                newVisSize.Y += ScrollOffset;
+                ScrollOffset = 0;
+            }
+            
+            
+
+            if (oldVisSize!=newVisSize)
+            {
+                
+                Proportion = newVisSize / size.ToVector2();
+                AnimateSizeChange(visual, oldVisSize, newVisSize);
+                oldVisSize = newVisSize;
+            } else if (updateSwapChainEntity) {
                 AnimateSizeChange(visual, oldVisSize, newVisSize);
             }
             
@@ -226,7 +237,7 @@ namespace CompositionExample
             var newOpacity = 1;
 
             var animation = compositor.CreateScalarKeyFrameAnimation();
-            animation.InsertKeyFrame(0, oldOpacity);
+            animation.InsertKeyFrame(1, oldOpacity);
             animation.InsertKeyFrame(1, newOpacity);
 
             visual.Opacity = newOpacity;
@@ -238,7 +249,7 @@ namespace CompositionExample
             var animation = compositor.CreateVector2KeyFrameAnimation();
             animation.InsertKeyFrame(1, oldSize);
             animation.InsertKeyFrame(1, newSize);
-            animation.Duration = TimeSpan.FromSeconds(0.05);
+            animation.Duration = TimeSpan.FromSeconds(0.04);
 
             visual.StartAnimation("Size", animation);
         }
