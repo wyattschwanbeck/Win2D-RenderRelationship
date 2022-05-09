@@ -44,11 +44,11 @@ namespace CompositionExample
         //int drawCount;
         int deviceCount;
 
-        volatile string entitySelected;
+        string entitySelected;
 
-        volatile Windows.UI.Input.PointerPoint CurrentPointer;
+        Windows.UI.Input.PointerPoint CurrentPointer;
         public Point PointChange;
-        public volatile bool renderUpdate=true;
+        public bool renderUpdate=true;
         //private Point check;
         public bool CheckEntitySelected(Windows.UI.Input.PointerPoint pointerPoint, Vector2 SizeOffset)
         {

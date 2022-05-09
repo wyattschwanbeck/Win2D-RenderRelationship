@@ -152,14 +152,18 @@ namespace CompositionExample
             
             compositionTarget.Root = rootVisual;
             //relationshipHandler=  new RelationshipHandler(compositor, compositionGraphicsDevice, size);
+            if (rootVisual.Children.Count > 0)
+                rootVisual.Children.RemoveAll();
+            
             swapChainRenderer = new SwapChainRenderer(compositor,size);
             swapChainRenderer.SetDevice(device, new Size(window.Bounds.Height, window.Bounds.Width));
             //rootVisual.Children.InsertAtTop(relationshipHandler.Visual);
             rootVisual.Children.InsertAtTop(swapChainRenderer.Visual);
             rootVisual.Children.InsertAtTop(swapChainRenderer.SelectedVisual);
-            //RenderDone = false;
-            
             var ignoredTask = UpdateVisualsLoop();
+            //RenderDone = false;
+
+
         }
       
         async Task UpdateVisualsLoop()
@@ -169,31 +173,39 @@ namespace CompositionExample
             while (!token.IsCancellationRequested)
             {
                 
-                if(updateSwapChainEntity)
+                if(updateSwapChainEntity && NewSwapChainEntityPos)
                 {
                     swapChainRenderer.SelectedVisual.Opacity = 1;
                     swapChainRenderer.Visual.Opacity = .75f;
                     UpdateVisual(swapChainRenderer.SelectedVisual, swapChainRenderer.Size);
-                    
+                    NewSwapChainEntityPos = false;
                 }
-                else if (!swapChainRenderer.renderUpdate)
+                else if (!swapChainRenderer.renderUpdate && !updateSwapChainEntity)
                 {
                     swapChainRenderer.Visual.Opacity = 1;
                     swapChainRenderer.SelectedVisual.Opacity = 0;
-                    UpdateVisual(swapChainRenderer.Visual, swapChainRenderer.Size);
+                    UpdateVisualSelection(swapChainRenderer.Visual, swapChainRenderer.Size);
 
                 }
 
 
-                await Task.Delay(TimeSpan.FromSeconds(.05));
+                await Task.Delay(TimeSpan.FromSeconds(0.1));
                 //RenderDone = true;
             }
         }
 
         void UpdateVisual(Visual visual, Size size)
         {
-            UpdateVisualPosition(visual, size);
             UpdateVisualOpacity(visual);
+            UpdateVisualPosition(visual, size);
+            
+        }
+        void UpdateVisualSelection(Visual visual, Size size)
+        {
+            UpdateVisualOpacity(visual);
+            UpdateVisualPosition(visual, size);
+            
+
         }
         Vector2 newVisSize;
        //Vector2 newSize;
@@ -214,23 +226,30 @@ namespace CompositionExample
                 newVisSize.Y += ScrollOffset;
                 ScrollOffset = 0;
             }
-            
-            
 
-            if (oldVisSize!=newVisSize)
+
+
+            if (oldVisSize != newVisSize)
             {
-                
+
                 Proportion = newVisSize / size.ToVector2();
                 AnimateSizeChange(visual, oldVisSize, newVisSize);
                 oldVisSize = newVisSize;
-            } else if (updateSwapChainEntity) {
-                AnimateSizeChange(visual, oldVisSize, newVisSize);
             }
+             else if (NewSwapChainEntityPos)
+            {
+                AnimateSizeChange(visual, oldVisSize, newVisSize);
+                NewSwapChainEntityPos = false;
+            }
+                
+            //    //AnimateOffset(visual, new Vector3(swapChainRenderer.PointChange.ToVector2(),0), visual.Offset);
+            //}
             
             
         }
 
-        
+
+
         void UpdateVisualOpacity(Visual visual)
         {
             var oldOpacity = visual.Opacity;
@@ -249,7 +268,7 @@ namespace CompositionExample
             var animation = compositor.CreateVector2KeyFrameAnimation();
             animation.InsertKeyFrame(1, oldSize);
             animation.InsertKeyFrame(1, newSize);
-            animation.Duration = TimeSpan.FromSeconds(0.04);
+            animation.Duration = TimeSpan.FromSeconds(0.05);
 
             visual.StartAnimation("Size", animation);
         }
@@ -270,7 +289,7 @@ namespace CompositionExample
             PointerDragOffset = new Vector3();
             
             updateSwapChainEntity = swapChainRenderer.CheckEntitySelected(args.CurrentPoint,Proportion );
-
+            
 
         }
         private void Window_PointerReleased(CoreWindow sender, PointerEventArgs args)
@@ -285,8 +304,10 @@ namespace CompositionExample
             //var ignoredTask = UpdateVisualsLoop();
         }
         private Vector2 LastPoint;
+        bool NewSwapChainEntityPos = false;
         private void Window_PointerMoved(CoreWindow sender, PointerEventArgs args)
         {
+            
             if (pressOccured && LastPoint != null && !updateSwapChainEntity)
             {
                 PointerDragOffset.X = (float)(rootVisual.Offset.X + (args.CurrentPoint.Position.X - LastPoint.X));
@@ -295,6 +316,7 @@ namespace CompositionExample
                 rootVisual.Offset = PointerDragOffset;
                 LastPoint.X = (float)args.CurrentPoint.Position.X;
                 LastPoint.Y = (float)args.CurrentPoint.Position.Y;
+                //NewSwapChainEntityPos = true;
                 //
 
             }
@@ -304,6 +326,7 @@ namespace CompositionExample
                 PointerDragOffset.Y = (float)(rootVisual.Offset.Y + (args.CurrentPoint.Position.Y - LastPoint.Y));
                 swapChainRenderer.PointChange.X = (args.CurrentPoint.Position.X- LastPoint.X);
                 swapChainRenderer.PointChange.Y = (args.CurrentPoint.Position.Y- LastPoint.Y);
+                NewSwapChainEntityPos = true;
 
             }
             LastPoint = new Vector2();
@@ -325,7 +348,7 @@ namespace CompositionExample
 
         void CreateDevice()
         {
-            device = CanvasDevice.GetSharedDevice();
+            device = CanvasDevice.GetSharedDevice(false);
             device.DeviceLost += Device_DeviceLost;
 
             if (compositionGraphicsDevice == null)
